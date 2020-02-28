@@ -1,0 +1,203 @@
+#!/bin/bash
+#############################################################################
+######## Este script faz backup de arquivos do servidor no Google Drive #####
+######## Criado em: 19/02/2020	Por: Guilherme A. costa	#####################
+######## Requisitos: instalação e configuração do RCLONE #####################
+#############################################################################
+
+
+## Registrando inicio do backup no log
+/usr/bin/logger -p local1.info "Backup - Iniciando backup na função $1"
+
+#########################################
+#######  Declaração de variáveis  #######
+#########################################
+
+
+	# Lê arquivo de configuração
+	if [ -f backup.conf ]; then
+        	. backup.conf
+	else
+        	echo "Arquivo de configuração não existe"
+		exit
+	fi
+
+
+
+	# Variaveis automáticas
+		serverName=`hostname`
+		remoteFolder=`rclone lsd $driveName:/$pathBackup | awk '{print $5}'`
+		dateBackup=`date +%Y%m%d`
+		year=`date +%Y`
+		month=`date +%m`
+
+#########################################
+#######  Funçoes e checagens  ###########
+#########################################
+	function checagem() {
+		#Cria a pasta do servidor no Drive caso não exista
+
+			if [ -z "$remoteFolder" ]
+			then
+				/usr/bin/logger -p local1.info "Backup - Criando a pasta $serverName em $pathBackup"
+				rclone mkdir $driveName:/$pathBackup/$serverName
+			fi
+	
+		#Cria a pasta do ano no Drive
+			test=`rclone lsd $driveName:/$pathBackup/$serverName | awk '{print $5}'| grep $year `
+      
+			if [ -z "$test" ]
+        	        then
+				/usr/bin/logger -p local1.info "Backup - Criando a pasta $year em $pathBackup/$serverName"
+                	        rclone mkdir $driveName:/$pathBackup/$serverName/$year
+			fi
+		#Cria a pasta do mes no Drive
+			test2=`rclone lsd $driveName:/$pathBackup/$serverName/$year | awk '{print $5}'| grep $month `
+      
+			if [ -z "$test2" ]
+        	        then
+				/usr/bin/logger -p local1.info "Backup - Criando a pasta $month em $pathBackup/$serverName/$year"
+                	        rclone mkdir $driveName:/$pathBackup/$serverName/$year/$month
+                        	rclone mkdir $driveName:/$pathBackup/$serverName/$year/$month/full
+                        	rclone mkdir $driveName:/$pathBackup/$serverName/$year/$month/incremental
+			fi
+	
+	}
+
+
+
+	#Back do banco de dados
+	function backupDb() {
+		/usr/bin/logger -p local1.info "Backup - Listando bancos de dados"	
+		databases=`mysql -P $portdb -h $hostdb -u $userdb -p$passdb -e 'show databases;' | grep -v backup | grep -v information_schema | grep -v mysql | grep -v performance_schema | grep -v teste | grep -v Database`
+		/usr/bin/logger -p local1.info "Backup - backup dos bancos $databases"
+		cd /tmp
+		for aux in $databases; do
+			/usr/bin/logger -p local1.info "Backup - Dump do banco $aux"
+        		mysqldump -P $portdb -h $hostdb -u $userdb -p$passdb -B $aux > $aux-$dateBackup.sql
+        	done
+		/usr/bin/logger -p local1.info "Backup - compactando arquivos .sql"
+		tar -zcvf backup-db-$dateBackup.tar.gz *.sql
+
+		/usr/bin/logger -p local1.info "Backup - Excluindo arquivos .sql"
+		rm *.sql
+		
+		/usr/bin/logger -p local1.info "Backup - Enviando para o Drive"
+		rclone copy backup-db-$dateBackup.tar.gz $driveName:/$pathBackup/$serverName/$year/$month/full/
+		
+		rm backup-db-$dateBackup.tar.gz
+
+		/usr/bin/logger -p local1.info "Backup - Fim backup banco"
+	}
+
+
+
+
+
+
+
+	#Compacta e envia o aquivo para o Drive
+	function backupFull() {
+
+		# compactar pastas
+		for aux in $pastasBackup
+		do
+			cd /tmp
+			aux2=`echo $aux | awk -F"/" '{print $NF}'`
+			/usr/bin/logger -p local1.info "Backup - Compactando pasta $aux"
+			tar -zcvf $aux2-$dateBackup.tar.gz $aux
+			/usr/bin/logger -p local1.info "Backup - Enviando arquivo $aux2-$dateBackup.tar.gz para o Drive"
+			rclone copy $aux2-$dateBackup.tar.gz $driveName:/$pathBackup/$serverName/$year/$month/full/
+			/usr/bin/logger -p local1.info "Backup - Apagando arquivo $aux2-$dateBackup.tar.gz local"
+			rm $aux2-$dateBackup.tar.gz
+		done
+		backupDb
+		/usr/bin/logger -p local1.info "Backup - Fim do backup Full"
+		
+		
+	}	
+
+
+	# Faz um Sinc das pastas 
+	backupIncremental() {
+		
+		# compactar pastas
+                for aux in $pastasBackup
+                do
+			aux2=`echo $aux | awk -F"/" '{print $NF}'`
+			rclone mkdir $driveName:/$pathBackup/$serverName/$year/$month/incremental/$aux2
+                        /usr/bin/logger -p local1.info "Backup - Fazendo Sync para $aux"
+			rclone sync $aux $driveName:/$pathBackup/$serverName/$year/$month/incremental/$aux2
+			/usr/bin/logger -p local1.info "Backup - Fim Sync para $aux"
+                done
+		/usr/bin/logger -p local1.info "Backup - Fim backup incremental"
+
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+case $1 in
+
+#########################################
+#######     Backup Full       ###########
+#########################################
+
+	full)
+		echo full
+		checagem
+		backupFull
+	;;
+
+#########################################
+#######  Backup incremental   ###########
+#########################################
+
+	incremental) 
+		echo incremental
+		checagem
+		backupIncremental
+	;;
+
+
+
+#########################################
+####### Backup Banco de Dados ###########
+#########################################
+
+	database)	
+		echo banco
+		checagem
+		backupDb
+	;;
+
+
+
+
+
+#########################################
+#######        Help 		#########
+#########################################
+
+        help)
+                echo "help"
+        ;;
+
+
+	*)
+		echo "comando inválido"
+	;;
+esac
+	
+
