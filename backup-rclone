@@ -191,7 +191,10 @@ case $1 in
 #########################################
 
         help)
-                echo "help"
+                echo -e "Use as opções a baixo: "
+                echo -e "full - faz backup completo, inclusive do banco de dados"
+                echo -e "incremental - copia apenas o que sofreu alterações ou novo"
+                echo -e "database - backup apenas do banco de dados"
         ;;
 
 
