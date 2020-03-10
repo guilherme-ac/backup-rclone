@@ -1,6 +1,8 @@
 
 Script para fazer backups no Google Drive ou outro sistema utilizando rclone.
 
+Importante: As variávies são definidas no arquivo backup.conf que deve estar localizado no /etc/backup.conf
+
 Para saber mais sobre a instalação e configuração do rclone acesse https://rclone.org/
 
 

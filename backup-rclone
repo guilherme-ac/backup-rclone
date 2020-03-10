@@ -15,8 +15,8 @@
 
 
 	# Lê arquivo de configuração
-	if [ -f backup.conf ]; then
-        	. backup.conf
+	if [ -f /etc/backup.conf ]; then
+        	. /etc/backup.conf
 	else
         	echo "Arquivo de configuração não existe"
 		exit
