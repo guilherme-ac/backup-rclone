@@ -59,7 +59,7 @@
 				/usr/bin/logger -p local1.info "Backup - Criando a pasta $month em $pathBackup/$serverName/$year"
                 	        rclone mkdir $driveName:/$pathBackup/$serverName/$year/$month
                         	rclone mkdir $driveName:/$pathBackup/$serverName/$year/$month/full
-                        	rclone mkdir $driveName:/$pathBackup/$serverName/$year/$month/incremental
+                        	rclone mkdir $driveName:/$pathBackup/$serverName/$year/incremental
 			fi
 	
 	}
@@ -125,9 +125,9 @@
                 for aux in $pastasBackup
                 do
 			aux2=`echo $aux | awk -F"/" '{print $NF}'`
-			rclone mkdir $driveName:/$pathBackup/$serverName/$year/$month/incremental/$aux2
+			rclone mkdir $driveName:/$pathBackup/$serverName/$year/incremental/$aux2
                         /usr/bin/logger -p local1.info "Backup - Fazendo Sync para $aux"
-			rclone sync $aux $driveName:/$pathBackup/$serverName/$year/$month/incremental/$aux2
+			rclone sync $aux $driveName:/$pathBackup/$serverName/$year/incremental/$aux2
 			/usr/bin/logger -p local1.info "Backup - Fim Sync para $aux"
                 done
 		/usr/bin/logger -p local1.info "Backup - Fim backup incremental"
